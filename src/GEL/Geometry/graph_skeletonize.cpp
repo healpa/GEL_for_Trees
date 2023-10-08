@@ -21,6 +21,7 @@
 #include <GEL/Geometry/DynCon.h>
 #include <GEL/Geometry/graph_skeletonize.h>
 #include <GEL/Geometry/graph_io.h>
+#include <forward_list>
 
 using namespace std;
 using namespace CGLA;
@@ -1262,5 +1263,306 @@ namespace Geometry {
 
         return msg;
     }
+    
+    //Edits Helen
+    
+    double angle_z_axis(Geometry::AMGraph3D& g, NodeID one, NodeID two){
+    //n = bottom node (one), nb = edge node (two), c = +1 z direction node
+    
+    auto xn = g.pos[one][0];
+    auto xnb = g.pos[two][0];
+    auto xc = xn;
+    auto yn = g.pos[one][1];
+    auto ynb = g.pos[two][1];
+    auto yc = yn;
+    auto zn = g.pos[one][2];
+    auto znb = g.pos[two][2];
+    auto zc = zn + 0.5;
+    
+    
+    // edge direction
+    auto xb = xnb-xn;
+    auto yb = ynb-yn;
+    auto zb = znb-zn;
+    
+    //z direction direction
+    auto xcd = xc-xn;
+    auto ycd = yc-yn;
+    auto zcd = zc-zn;
+    
+    auto length_b = sqrt(xb*xb + yb*yb + zb*zb);
+    auto length_c = sqrt(xcd*xcd + ycd*ycd + zcd*zcd);
+    
+    //    cout << "length b and c: " << length_b << " " << length_c <<  endl;
+    
+    auto dot_p = ((xb/length_b)*(xcd/length_c) + (yb/length_b)*(xcd/length_c) + (zb/length_b)*(zcd/length_c));
+    
+    auto length_b_unit = sqrt((xb/length_b)*(xb/length_b) + (yb/length_b)*(yb/length_b) + (zb/length_b)*(zb/length_b));
+    auto length_c_unit = sqrt((xcd/length_c)*(xcd/length_c) + (ycd/length_c)*(ycd/length_c) + (zcd/length_c)*(zcd/length_c));
+    
+    auto angle = (acos(dot_p/(length_b_unit*length_c_unit))*180)/3.141592;
+    
+    return angle;
+    
+}
+
+    NodeID bottom_node_return(Geometry::AMGraph3D& g){
+    cout << "** bottom_node_return function **" << endl;    //Finding z-values and the lowest edges
+    
+    vector<double> z_values;
+    vector<double> z_values_low;
+    vector<NodeID> z_values_low_index;
+    
+    //Loading z-coordinates into vector
+    for(auto i: g.node_ids()){
+        z_values.push_back(g.pos[i][2]);
+        //cout << g.pos[i][2] << " ";
+    }
+    // cout << "Stop" << endl;
+    
+    //Sort the z values and find the X lowest nodes
+    int X = 30;
+    for(int i = 0; i < X; i++){
+        double min = 1000;
+        NodeID index;
+        for(int j = 0; j < z_values.size(); j++){
+            if(z_values[j] < min){
+                min = z_values[j];
+                index = j;
+            }
+        }
+        z_values_low.push_back(min);
+        z_values_low_index.push_back(index);
+        z_values[index] += 10;
+        g.node_color[index] = Vec3f(1, 0, 0);
+    }
+    
+    int I = 0;
+    NodeID root_node;
+    for(int i = 0; i < z_values_low.size(); i++){
+        double angle = 1000;
+        auto NB = g.neighbors(z_values_low_index[i]);
+        for(auto j: NB){
+            if(g.pos[j][2] > z_values_low[i]){ //If the NB is a higher z value, find angle of edge relative to z-axis
+                angle = angle_z_axis(g, z_values_low_index[i], j);
+                
+                
+                if(angle < 45){
+                    I += 1;
+                    
+                    g.node_color[z_values_low_index[i]] = Vec3f(0, 1, 0); //Color the bottom node of the "vertical edge green"
+                    
+                    root_node = z_values_low_index[i];
+                }
+            }
+        }
+        
+        //Set limit for how many edge should be found
+        if(I > 0){
+            break;
+        }
+    }
+    
+    
+    vector<NodeID> remove;
+    for(int i = 0; i < z_values_low_index.size(); i++){
+        if(g.pos[z_values_low_index[i]][2] < g.pos[root_node][2]){
+            g.remove_node(z_values_low_index[i]);
+        }
+    }
+    
+    cout << "root_node: " << root_node << endl;
+    
+    
+    cout << "** finished bottom_node_return function **" << endl;
+    return root_node;
+}
+
+
+//Find distances to all nodes
+pair<AttribVec<NodeID, int>,AttribVec<NodeID, NodeID>> distance_to_all_nodes(Geometry::AMGraph3D& g){
+     cout << "** distance to all nodes function **" << endl;
+    //        NodeID s = skel_root_node(g);  //for branch 22
+    NodeID s = bottom_node_return(g); // for normal
+    NodeID next;
+    int walking = 0;
+    NodeID crossings = s; // should be equal to S, which is the starting vertex
+    
+    Util::AttribVec<NodeID, int> dist(g.no_nodes(),0);
+    Util::AttribVec<NodeID, NodeID> pred(g.no_nodes(),0);
+    Util::AttribVec<NodeID, NodeID> prev_crossing(g.no_nodes(),0);
+    Util::AttribVec<NodeID, int> cross_dist(g.no_nodes(),0);
+    
+    queue<NodeID> Q;
+    forward_list<NodeID> cross_node_Q{};
+    
+    dist[crossings] = 0; //dist to start vertex is 0
+    Q.push(crossings); // start vertex
+    
+    
+    while(!Q.empty()){
+        auto u = Q.front();
+        Q.pop();
+        auto no_NB = g.neighbors(u).size();
+        //            cout << no_NB << " no of NB" << endl;
+        
+        //        g.node_color[u] = Vec3f(1,0,0);
+        
+        //            straight branch
+        //            if(u  == s && dist[u] == 0){
+        
+        //
+        //                cout <<"found start vertex " << endl;
+        //                NodeID t;
+        //                for(auto w: g.neighbors(u)){ t = w; }
+        //                Q.push(t);
+        //                cross_node_Q.push_front(u);
+        //                next = t;
+        //                dist[u] = 1;
+        //                pred[next] = u;
+        //                walking += 1;
+        //
+        //            }
+        
+        if(no_NB == 2){
+            int check = 0;
+            for(auto t: g.neighbors(u)){ //go in the  right direction, the one notvisited before
+                if(dist[t] == 0){
+                                            cout << "At a straight edge part " << endl;
+                    Q.push(t);
+                    next = t;
+                }
+                else if(dist[t] != 0){
+                    check += 1;
+                }
+                
+            }
+            dist[u] = dist[pred[u]] + 1;
+            pred[next] = u;
+            walking += 1;
+            if(check == no_NB){
+                auto q = cross_node_Q.front();
+                cross_node_Q.pop_front();
+                cross_dist[q] += walking;
+                Q.push(q);
+                walking = 0;
+                                   cout << "Hopping, found no avaliable paths in straight branch" << endl;
+            }
+            
+        }
+        
+        //at a crossing
+        else if(no_NB > 2){
+                            cout <<"At a crossing " << endl;
+            int check = 0;
+            for(auto t: g.neighbors(u)){ //go in a direction in the crossing we havent been before
+                if(dist[t] == 0){
+                                            cout << "Going in a direction from the crossing " << endl;
+                    cross_node_Q.push_front(u);
+                    Q.push(t);
+                    pred[t] = u;
+                    dist[u] = dist[pred[u]] + 1;
+                    prev_crossing[u] = crossings;
+                    cross_dist[u] += walking;
+                    walking = 0;
+                    crossings = u;
+                    break;
+                }
+                //If we are at a crossing where all branches have been meet
+                else if(dist[t] != 0){
+                    check += 1;
+                    if(check == no_NB){
+                        if(cross_node_Q.empty()){ //if we have visited the whole tree then stop
+                            break;
+                        }
+                                                    cout << "last root we see " << u << endl;
+                        auto q = cross_node_Q.front();
+                        cross_node_Q.pop_front();
+                        cross_dist[q] += cross_dist[u];
+                        Q.push(q);
+                                                    cout << "hopping back" << endl;
+                    }
+                    
+                }
+            }
+        }
+        
+        //at branch ends or the start vertex
+        else if (no_NB == 1){
+            // If the vertex is the start vertex S
+            //go in the  right direction, the one not visited before
+            if(u == s ){ //should be start vertex S
+                                    cout <<"found start vertex " << endl;
+                NodeID t;
+                for(auto w: g.neighbors(u)){ t = w; }
+                Q.push(t);
+                next = t;
+                dist[u] = 1;
+                pred[next] = u;
+                walking += 1;
+            }
+            else if(1 == 1){
+                // if the vertex is a end of a branch
+                                    cout << "at the end of a branch " << endl;
+                dist[u] = dist[pred[u]] + 1;
+                
+                auto q = cross_node_Q.front();
+                cross_node_Q.pop_front();
+                cross_dist[q] += walking;
+                Q.push(q);
+                walking = 0;
+            }
+            
+            
+            
+        }
+    }
+     cout << "** finished distance to all nodes function **" << endl;
+    return make_pair(dist,pred);
+}
+
+void color_detached_parts(Geometry::AMGraph3D& g){
+    
+    auto a_pair = distance_to_all_nodes(g);
+    auto dist = a_pair.first;
+    
+    KDTree<Vec3d, AMGraph3D::NodeID> tree_skeleton;
+    KDTree<Vec3d, AMGraph3D::NodeID> tree_branches;
+    
+    vector<NodeID> loose;
+    Util::AttribVec<NodeID, int> loose_seen(g.no_nodes(),0);  //part of the big skeleton, 0 loose branch, 1 has ben searched
+    
+    for(auto i: g.node_ids()){
+        g.node_color[i] = Vec3f(0,0,0);
+    }
+    
+    //Color all nodes that can not be reached red
+    NodeID lose_nodes = 0;
+    NodeID connected_nodes = 0;
+    for(auto i = 0; i < g.no_nodes(); i++ ) {
+        if(dist[i] == 0){
+            g.node_color[i] = Vec3f(1,0,0);
+            lose_nodes += 1;
+            
+            //Create a vector with these LOOSE nodes
+            loose.push_back(i);
+            tree_branches.insert(g.pos[i], i);
+            
+        }
+        else{
+            connected_nodes += 1;
+            tree_skeleton.insert(g.pos[i], i);
+        }
+    }
+    
+    tree_skeleton.build();
+    tree_branches.build();
+    
+    cout << "loose nodes " << lose_nodes << endl;
+    cout << "total number " << g.no_nodes() << endl;
+    
+    double percentage_not_connected = (static_cast<float>(lose_nodes) / g.no_nodes()) * 100.0f;
+    cout << "percentage of not connected nodes: " << percentage_not_connected << "%" << endl;
+}
 
 }

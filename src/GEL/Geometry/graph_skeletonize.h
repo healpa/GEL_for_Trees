@@ -201,6 +201,9 @@ namespace Geometry {
      to the node set from which it was reached during the run of Dijkstra
      */
     NodeSetVec maximize_node_set_vec(AMGraph3D &g, const NodeSetVec &node_set_vec);
+    
+    // Edits Helen
+    void color_detached_parts(Geometry::AMGraph3D& g);
 
 }
 #endif /* graph_skeletonize_hpp */

@@ -204,3 +204,6 @@ def front_skeleton_and_map(g, colors):
     N_col = colors_flat.shape[0]
     lib_py_gel.graph_front_skeleton(g.obj, skel.obj, mapping.obj, N_col, colors_flat.ctypes.data_as(ct.POINTER(ct.c_double)))
     return skel, mapping
+
+def color_detached_parts(g):
+    lib_py_gel.graph_color_detached_parts(g.obj)

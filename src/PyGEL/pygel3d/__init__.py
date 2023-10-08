@@ -265,6 +265,8 @@ lib_py_gel.graph_saturate.argtypes = (ct.c_void_p, ct.c_int, ct.c_double, ct.c_d
 lib_py_gel.graph_LS_skeleton.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_bool)
 lib_py_gel.graph_MSLS_skeleton.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int)
 lib_py_gel.graph_front_skeleton.argtypes = (ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int, ct.POINTER(ct.c_double))
+lib_py_gel.graph_color_detached_parts.argtypes = (ct.c_void_p,)
+
 
 class IntVector:
     """ Vector of integer values.

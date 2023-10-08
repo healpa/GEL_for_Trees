@@ -138,3 +138,10 @@ DLLEXPORT void graph_front_skeleton(Graph_ptr _g_ptr, Graph_ptr _skel_ptr, IntVe
     for(auto n: g_ptr->node_ids())
         (*map_ptr)[n] = mapping[n];
 } 
+
+// Edits Helen
+void graph_color_detached_parts(Graph_ptr _g_ptr) {
+    AMGraph3D* g_ptr = reinterpret_cast<AMGraph3D*>(_g_ptr);
+    color_detached_parts(*g_ptr);
+}
+
